@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import requests
+import io
 
 st.set_page_config(page_title="International Cost of Capital Calculator", layout="wide")
 
@@ -9,14 +10,19 @@ st.set_page_config(page_title="International Cost of Capital Calculator", layout
 def load_betas():
     try:
         url = "https://pages.stern.nyu.edu/~adamodar/pc/datasets/betas.xls"
-        df = pd.read_excel(url, sheet_name=0, header=None)
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        res = requests.get(url, headers=headers, timeout=10)
+        
+        df = pd.read_excel(io.BytesIO(res.content), sheet_name=0, header=None)
+        
         header_row = -1
         for i, row in df.iterrows():
             if 'Industry Name' in row.values or 'Industry name' in row.values:
                 header_row = i
                 break
         if header_row != -1:
-            df = pd.read_excel(url, sheet_name=0, skiprows=header_row)
+            df = pd.read_excel(io.BytesIO(res.content), sheet_name=0, skiprows=header_row)
+            
         df.columns = [str(c).strip() for c in df.columns]
         df = df[['Industry Name', 'Unlevered beta']].dropna(subset=['Industry Name'])
         df['Unlevered beta'] = pd.to_numeric(df['Unlevered beta'], errors='coerce')
@@ -28,7 +34,10 @@ def load_betas():
 def load_spreads():
     try:
         url = "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/ratings.html"
-        dfs = pd.read_html(url)
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        res = requests.get(url, headers=headers, timeout=10)
+        
+        dfs = pd.read_html(io.StringIO(res.text))
         for df in dfs:
             for idx, row in df.iterrows():
                 row_str = " ".join([str(x) for x in row.values])
@@ -46,7 +55,7 @@ def load_bonds():
         url = "https://tradingeconomics.com/bonds"
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         res = requests.get(url, headers=headers)
-        dfs = pd.read_html(res.text)
+        dfs = pd.read_html(io.StringIO(res.text))
         bonds = pd.concat(dfs)
         if 'Country' in bonds.columns and 'Yield' in bonds.columns:
             bonds = bonds[['Country', 'Yield']].dropna()
